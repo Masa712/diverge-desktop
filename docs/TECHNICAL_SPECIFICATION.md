@@ -660,7 +660,237 @@ function useStreamingBuffer(nodeId: string) {
 
 ---
 
-## 13. セキュリティ考慮事項
+## 13. Diverge Webからの移植ファイル活用ガイド
+
+Diverge Web（`~/Projects/Application/Diverge`）から移植済みのファイルと、その利用方法を示す。
+
+### 凡例
+
+| ステータス | 意味 |
+|-----------|------|
+| ✅ そのまま使用可 | 変更不要 |
+| 🔧 インポートパス修正 | `@/` エイリアスの確認と修正のみ |
+| ✏️ 一部修正必要 | ロジックの一部をデスクトップ向けに変更 |
+| 📚 参照のみ | 直接使用せず、Rust実装の参考として参照 |
+
+---
+
+### 13.1 型定義 (`src/types/`)
+
+#### `src/types/index.ts` — ✏️ 一部修正必要
+
+Webアプリ全体の型定義。デスクトップで不要な型を削除し、Ollama向けに調整する。
+
+**具体的な修正点:**
+```typescript
+// 削除: Supabase・Stripe・認証関連の型
+// 削除: ModelProvider（OpenRouter固有の概念）
+// 修正: ModelId → Ollamaのモデル名形式（"llama3.2:latest" 等）に合わせる
+
+// 追加が必要なOllama固有の型（新規作成: src/types/ollama.ts）
+export interface OllamaModel {
+  name: string;           // "llama3.2:latest"
+  size: number;           // バイト
+  digest: string;
+  modified_at: string;
+  details: { family: string; parameter_size: string; quantization_level: string; };
+}
+```
+
+**残すべき重要な型:**
+- `ChatNode` / `TreeNode` → ノードベースUIの核
+- `InferenceParams` → 推論パラメータ設定
+- `Session` → セッション管理
+
+#### `src/types/comments.ts` — ✅ そのまま使用可
+コメント機能の型定義。Phase 2以降で使用。現時点では変更不要。
+
+---
+
+### 13.2 ツリーコンポーネント (`src/components/tree/`) — Divergeの核心
+
+**これがDiverge Desktopの最も重要な移植資産。** React Flowを使ったノードツリーUIはそのまま流用できる。
+
+#### `src/components/tree/BalancedTreeView.tsx` — 🔧 インポートパス修正
+
+メインのツリービジュアライゼーション。`reactflow` パッケージのインストール後、インポートパスを修正するだけで動作する。
+
+```bash
+npm install reactflow
+```
+
+```typescript
+// 修正前（Web版）
+import { ChatNode } from '@/types'
+// 修正後（Desktop版）
+import { ChatNode } from '../types'   // または tsconfig paths で @/ を設定
+```
+
+#### `src/components/tree/message-node.tsx` — 🔧 インポートパス修正
+
+個々のノードカードUI。Webアプリとほぼ同一のまま使用できる。
+- Supabase認証への依存なし
+- onBranch / onRetry などのコールバックpropsをTauri invokeに接続する
+
+#### `src/components/tree/CompactTreeLayout.ts` / `SymmetricTreeLayout.ts` — ✅ そのまま使用可
+
+純粋なレイアウト計算アルゴリズム。外部依存なし。変更不要。
+
+#### `src/components/tree/chat-tree-view.tsx` — ✏️ 一部修正必要
+
+ツリー全体のラッパー。セッションデータの取得部分をTauri IPC経由に変更する。
+
+```typescript
+// 修正前: API fetch / Supabase
+const nodes = await fetch('/api/nodes?sessionId=...')
+// 修正後: Tauri IPC
+import { invoke } from '@tauri-apps/api/core'
+const nodes = await invoke('get_nodes', { sessionId })
+```
+
+---
+
+### 13.3 チャットコンポーネント (`src/components/chat/`)
+
+#### `src/components/chat/chat-input.tsx` — ✏️ 一部修正必要
+
+メッセージ入力コンポーネント。コア部分（UI、キーボードショートカット、マルチライン）はそのまま使用可。
+
+**修正点:**
+```typescript
+// 削除: next/navigation の useRouter
+// 削除: 認証状態チェック（isAuthenticated 等）
+// 変更: 送信処理を props で受け取る形に統一
+// onSend: (content: string) => void  ← この形は変更不要
+```
+
+#### `src/components/chat/model-selector.tsx` — ✏️ 一部修正必要
+
+モデル選択ドロップダウンUI。構造はそのままで、モデルリストのデータソースを変更する。
+
+```typescript
+// 修正前: OpenRouterのモデルリスト（静的定義）
+import { AVAILABLE_MODELS } from '@/lib/openrouter/models'
+// 修正後: Ollamaから動的取得
+import { invoke } from '@tauri-apps/api/core'
+const models = await invoke('list_local_models')  // OllamaModel[]
+```
+
+#### `src/components/chat/NodeDeleteConfirmationModal.tsx` — ✅ そのまま使用可
+
+削除確認ダイアログ。純粋なUIコンポーネント。変更不要。
+
+#### `src/components/chat/node-detail-sidebar.tsx` — 🔧 インポートパス修正
+
+ノード詳細（トークン数・モデル名・タイムスタンプ等）表示サイドバー。インポートパス修正のみ。
+
+---
+
+### 13.4 UIコンポーネント (`src/components/ui/`)
+
+#### `src/components/ui/MarkdownRenderer.tsx` — 🔧 依存パッケージ追加後そのまま使用可
+
+AIのレスポンスをMarkdown/コードブロックとして表示するコンポーネント。依存パッケージを追加すればそのまま動作。
+
+```bash
+npm install react-markdown react-syntax-highlighter remark-gfm remark-math rehype-katex
+npm install -D @types/react-syntax-highlighter
+```
+
+#### `src/components/ui/card.tsx` — ✅ そのまま使用可
+
+汎用カードコンポーネント。Tailwind CSS依存のみ。変更不要。
+
+#### `src/components/ui/streaming-animation.tsx` — ✅ そのまま使用可
+
+ストリーミング中のローディングアニメーション。CSSアニメーションのみ。変更不要。
+
+---
+
+### 13.5 フック (`src/hooks/`)
+
+#### `src/hooks/useNodeChain.ts` — 🔧 インポートパス修正
+
+ノードツリーのナビゲーション（選択中のノード、親子関係のトラバース）。
+コアロジックはそのまま使用可。Zustandストアとの接続部分のインポートパスを修正する。
+
+#### `src/hooks/useScrollProgress.ts` — ✅ そのまま使用可
+
+スクロール位置のトラッキング。ブラウザDOM操作のみ。変更不要。
+
+#### `src/hooks/useSidebarResize.ts` — ✅ そのまま使用可
+
+サイドバーのドラッグリサイズ。マウスイベント処理のみ。変更不要。
+
+---
+
+### 13.6 コンテキスト・ユーティリティ
+
+#### `src/contexts/ChatLayoutContext.tsx` — ✅ そのまま使用可
+
+サイドバーの開閉状態・モバイル対応などのレイアウト状態管理。変更不要。
+
+#### `src/lib/utils/token-counter.ts` — ✅ そのまま使用可
+
+テキストからのトークン数推定ロジック。変更不要。
+
+#### `src/lib/utils/node-references.ts` — ✅ そのまま使用可
+
+`@node_xxx` 形式のノード参照パース。変更不要。
+
+#### `src/lib/system-prompts.ts` — ✅ そのまま使用可
+
+システムプロンプトのテンプレート集。変更不要。
+
+---
+
+### 13.7 参照ファイル (`docs/reference/`)
+
+Rust側バックエンドを実装する際の参考資料。これらは **直接 `src/` に移動せず**、実装の設計参考として使用する。
+
+| ファイル | 参照先（実装先） | 参照ポイント |
+|---------|----------------|-------------|
+| `web-sessions.ts` | `src-tauri/src/db/sessions.rs` | セッションCRUDの操作パターン、フィールド構成 |
+| `web-chat-nodes.ts` | `src-tauri/src/db/nodes.rs` | ノードの取得・保存・削除のロジック |
+| `web-enhanced-context.ts` | `src/hooks/useChat.ts`（コンテキスト構築部分） | 祖先ノードを辿ってメッセージ配列を構築するアルゴリズム |
+| `web-useSessionManagement.ts` | `src/stores/sessionStore.ts` | セッション状態管理のZustand実装パターン |
+| `openrouter/client.ts` | `src-tauri/src/ollama/client.rs` | ストリーミングHTTPクライアントの実装パターン（RustのHTTP処理と比較） |
+
+---
+
+### 13.8 移植時の共通作業
+
+移植したすべてのファイルで共通して必要な作業:
+
+**1. `tsconfig.json` でパスエイリアスを設定**
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  }
+}
+```
+
+**2. `vite.config.ts` でエイリアスを追加**
+```typescript
+import { defineConfig } from 'vite'
+import { resolve } from 'path'
+
+export default defineConfig({
+  resolve: {
+    alias: { '@': resolve(__dirname, 'src') }
+  }
+})
+```
+
+これにより `@/types` 等のインポートが解決され、Web版からのコピーがそのまま動作するようになる。
+
+---
+
+## 14. セキュリティ考慮事項
 
 ### 13.1 Tauri CSP設定
 
