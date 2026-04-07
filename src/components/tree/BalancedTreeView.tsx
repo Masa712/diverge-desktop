@@ -82,7 +82,7 @@ function CompactTreeViewInner({
 }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
-  const { fitView, setCenter, getZoom, setViewport, getNodes } = useReactFlow()
+  const { setCenter, getZoom, setViewport, getNodes } = useReactFlow()
   const layoutEngine = useRef(new CompactTreeLayout(COMPACT_LAYOUT_CONFIG))
   const positionsRef = useRef<Map<string, NodePosition>>(new Map())
   const prevSessionIdRef = useRef<string | null>(null)

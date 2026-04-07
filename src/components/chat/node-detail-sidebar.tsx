@@ -29,7 +29,7 @@ interface Props {
   onDeleteNode?: (nodeId: string) => void
 }
 
-export function NodeDetailSidebar({ node, allNodes, isOpen, onClose, session, onModelChange, onWidthChange, onRetryNode, onDeleteNode }: Props) {
+export function NodeDetailSidebar({ node, allNodes, isOpen, onClose, session, onWidthChange, onRetryNode, onDeleteNode }: Props) {
   const [comment, setComment] = useState('')
   const [isCommentLoading, setIsCommentLoading] = useState(false)
   const { user } = useAuth()
@@ -38,7 +38,7 @@ export function NodeDetailSidebar({ node, allNodes, isOpen, onClose, session, on
   const previousNodeIdRef = useRef<string | null>(null)
   
   // Use custom hooks for better separation of concerns
-  const { currentDisplayNode, nodeChain, currentNodeIndex, canNavigate, navigate } = useNodeChain(node, allNodes)
+  const { currentDisplayNode, nodeChain, currentNodeIndex, navigate } = useNodeChain(node, allNodes)
   const { width, isResizing, sidebarRef, handleMouseDown } = useSidebarResize({ onWidthChange })
 
   // Fetch user profile for display name
@@ -69,9 +69,9 @@ export function NodeDetailSidebar({ node, allNodes, isOpen, onClose, session, on
   const canDeleteCurrentNode = currentDisplayNode && !hasChildren(currentDisplayNode.id)
   
   // Use comments hook to fetch and manage comments
-  const { comments, loading: commentsLoading, createComment, deleteComment, refetch } = useComments({
+  const { comments, loading: commentsLoading, createComment, deleteComment } = useComments({
     nodeId: currentDisplayNode?.id,
-    sessionId: session?.id
+    sessionId: session?.id,
   })
 
   // Reset comment when node changes
@@ -150,12 +150,6 @@ export function NodeDetailSidebar({ node, allNodes, isOpen, onClose, session, on
 
   const navigateToNode = (index: number) => {
     navigate.toIndex(index)
-  }
-
-  const handleModelChange = (model: string) => {
-    if (onModelChange && currentDisplayNode) {
-      onModelChange(currentDisplayNode.id, model)
-    }
   }
 
   if (!isOpen || !currentDisplayNode) return null
@@ -323,7 +317,7 @@ export function NodeDetailSidebar({ node, allNodes, isOpen, onClose, session, on
                     </button>
                     
                     {/* Function Calling Icon */}
-                    {currentDisplayNode.metadata?.functionCalling && (
+                    {!!currentDisplayNode.metadata?.functionCalling && (
                       <div 
                         className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"
                         title="Function Calling enabled"
@@ -333,7 +327,7 @@ export function NodeDetailSidebar({ node, allNodes, isOpen, onClose, session, on
                     )}
                     
                     {/* Reasoning Icon */}
-                    {currentDisplayNode.metadata?.reasoning && (
+                    {!!currentDisplayNode.metadata?.reasoning && (
                       <div 
                         className="w-5 h-5 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center"
                         title="Deep reasoning enabled"

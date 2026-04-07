@@ -1,0 +1,6 @@
+/* Mobile optimizations for React Flow tree view */
+@media (max-width: 768px) {
+  .react-flow__controls {
+    bottom: 80px;
+  }
+}

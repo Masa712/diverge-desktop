@@ -3,33 +3,12 @@
  * Uses intelligent estimation optimized for different model families
  */
 
-// Model to encoding mapping for accurate token counting
-const MODEL_ENCODINGS = {
-  // OpenAI GPT models
-  'gpt-4': 'cl100k_base',
-  'gpt-4o': 'o200k_base',
-  'gpt-4o-mini': 'o200k_base',
-  'gpt-4-turbo': 'cl100k_base',
-  'gpt-3.5-turbo': 'cl100k_base',
-  
-  // Anthropic Claude models (use cl100k_base as approximation)
-  'claude-3-opus': 'cl100k_base',
-  'claude-3-sonnet': 'cl100k_base',
-  'claude-3-haiku': 'cl100k_base',
-  'claude-3.5-sonnet': 'cl100k_base',
-  
-  // Fallback
-  'default': 'cl100k_base'
-} as const
-
-type ModelKey = keyof typeof MODEL_ENCODINGS
-
 // Production-safe implementation - always use fallback estimation
 
 /**
  * Count tokens using production-safe estimation
  */
-export function countTokens(text: string, model: string = 'gpt-4o'): number {
+export function countTokens(text: string, _model: string = 'gpt-4o'): number {
   if (!text) return 0
   return estimateTokensFallback(text)
 }
@@ -38,7 +17,7 @@ export function countTokens(text: string, model: string = 'gpt-4o'): number {
  * Synchronous version that always uses fallback estimation
  * Use this for production environments to avoid async issues
  */
-export function countTokensSync(text: string, model: string = 'gpt-4o'): number {
+export function countTokensSync(text: string, _model: string = 'gpt-4o'): number {
   if (!text) return 0
   return estimateTokensFallback(text)
 }
@@ -46,7 +25,7 @@ export function countTokensSync(text: string, model: string = 'gpt-4o'): number 
 /**
  * Count tokens for multiple texts efficiently
  */
-export function countTokensBatch(texts: string[], model: string = 'gpt-4o'): number[] {
+export function countTokensBatch(texts: string[], _model: string = 'gpt-4o'): number[] {
   if (texts.length === 0) return []
   return texts.map(estimateTokensFallback)
 }
@@ -54,7 +33,7 @@ export function countTokensBatch(texts: string[], model: string = 'gpt-4o'): num
 /**
  * Synchronous version for batch token counting
  */
-export function countTokensBatchSync(texts: string[], model: string = 'gpt-4o'): number[] {
+export function countTokensBatchSync(texts: string[], _model: string = 'gpt-4o'): number[] {
   if (texts.length === 0) return []
   return texts.map(estimateTokensFallback)
 }
@@ -64,10 +43,10 @@ export function countTokensBatchSync(texts: string[], model: string = 'gpt-4o'):
  */
 export function countMessageTokens(
   messages: Array<{ role: string; content: string }>,
-  model: string = 'gpt-4o'
+  _model: string = 'gpt-4o'
 ): number {
   if (messages.length === 0) return 0
-  return messages.reduce((total, msg) => 
+  return messages.reduce((total, msg) =>
     total + estimateTokensFallback(msg.content) + estimateTokensFallback(msg.role) + 4, 2
   )
 }
@@ -77,10 +56,10 @@ export function countMessageTokens(
  */
 export function countMessageTokensSync(
   messages: Array<{ role: string; content: string }>,
-  model: string = 'gpt-4o'
+  _model: string = 'gpt-4o'
 ): number {
   if (messages.length === 0) return 0
-  return messages.reduce((total, msg) => 
+  return messages.reduce((total, msg) =>
     total + estimateTokensFallback(msg.content) + estimateTokensFallback(msg.role) + 4, 2
   )
 }

@@ -19,23 +19,11 @@ export function StreamingAnimation({ className = '' }: Props) {
           />
         ))}
       </div>
-      <style jsx>{`
+      <style>{`
         @keyframes streamingLineLeftToRight {
-          0% {
-            transform: scaleX(0);
-            transform-origin: left;
-            opacity: 0.3;
-          }
-          70% {
-            transform: scaleX(1);
-            transform-origin: left;
-            opacity: 1;
-          }
-          100% {
-            transform: scaleX(0);
-            transform-origin: left;
-            opacity: 0;
-          }
+          0% { transform: scaleX(0); transform-origin: left; opacity: 0.3; }
+          70% { transform: scaleX(1); transform-origin: left; opacity: 1; }
+          100% { transform: scaleX(0); transform-origin: left; opacity: 0; }
         }
       `}</style>
     </div>

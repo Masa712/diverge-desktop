@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@import "reactflow/dist/style.css";
+@import "highlight.js/styles/github-dark.css";
+@import "katex/dist/katex.min.css";
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #0f0f0f;
+  color: #e5e5e5;
+}

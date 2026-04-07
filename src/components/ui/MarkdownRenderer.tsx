@@ -37,8 +37,8 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
           // Custom code block with copy button
           pre: ({ node, children, ...props }) => {
             const codeElement = React.Children.toArray(children)[0]
-            const codeContent = React.isValidElement(codeElement) 
-              ? (codeElement.props.children as string) 
+            const codeContent = React.isValidElement<{ children?: string }>(codeElement)
+              ? (codeElement.props.children ?? '')
               : ''
             const codeId = `code-${Math.random().toString(36).substring(2, 11)}`
             
@@ -164,34 +164,13 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
         {content}
       </ReactMarkdown>
       
-      <style jsx global>{`
-        .markdown-content {
-          line-height: 1.6;
-        }
-        
-        .markdown-content pre {
-          margin: 1rem 0;
-        }
-        
-        .markdown-content code {
-          font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-        }
-        
-        /* Highlight.js theme adjustments */
-        .markdown-content .hljs {
-          background: #1f2937 !important;
-          color: #f3f4f6 !important;
-        }
-        
-        /* Math rendering styles */
-        .markdown-content .katex {
-          font-size: 1em;
-        }
-        
-        .markdown-content .katex-display {
-          margin: 1em 0;
-          text-align: center;
-        }
+      <style>{`
+        .markdown-content { line-height: 1.6; }
+        .markdown-content pre { margin: 1rem 0; }
+        .markdown-content code { font-family: 'Menlo', 'Monaco', 'Courier New', monospace; }
+        .markdown-content .hljs { background: #1f2937 !important; color: #f3f4f6 !important; }
+        .markdown-content .katex { font-size: 1em; }
+        .markdown-content .katex-display { margin: 1em 0; text-align: center; }
       `}</style>
     </div>
   )

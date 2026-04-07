@@ -1,81 +1,50 @@
 'use client'
 
-import { ModelId, ModelConfig } from '@/types'
+import type { OllamaModel } from '@/types/ollama'
 
 interface Props {
-  selectedModel: ModelId
-  onModelChange: (model: ModelId) => void
-  availableModels: ModelConfig[]
-  compact?: boolean
+  models: OllamaModel[]
+  selected: string
+  onChange: (name: string) => void
   disabled?: boolean
 }
 
-export function ModelSelector({ selectedModel, onModelChange, availableModels, compact = false, disabled = false }: Props) {
-  const selectedModelConfig = availableModels.find(m => m.id === selectedModel)
-
-  // Group models by provider
-  const modelsByProvider = availableModels.reduce((acc, model) => {
-    if (!acc[model.provider]) {
-      acc[model.provider] = []
-    }
-    acc[model.provider].push(model)
+export function ModelSelector({ models, selected, onChange, disabled = false }: Props) {
+  // family ごとにグループ化
+  const byFamily = models.reduce<Record<string, OllamaModel[]>>((acc, model) => {
+    const family = model.details?.family || 'Other'
+    if (!acc[family]) acc[family] = []
+    acc[family].push(model)
     return acc
-  }, {} as Record<string, ModelConfig[]>)
+  }, {})
 
-  // Sort providers alphabetically
-  const sortedProviders = Object.keys(modelsByProvider).sort()
+  const families = Object.keys(byFamily).sort()
 
-  if (compact) {
+  if (models.length === 0) {
     return (
-      <select
-        value={selectedModel}
-        onChange={(e) => onModelChange(e.target.value as ModelId)}
-        disabled={disabled}
-        className="rounded-lg bg-white/10 border border-white/20 px-2 py-1 text-xs text-gray-700 focus:bg-white/20 focus:border-white/30 focus:outline-none transition-all duration-200 text-right disabled:opacity-50 disabled:cursor-not-allowed"
-        title={disabled ? 'Loading subscription plan...' : undefined}
-      >
-        {sortedProviders.map((provider) => (
-          <optgroup key={provider} label={provider}>
-            {modelsByProvider[provider].map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+      <span className="text-xs text-white/40">
+        モデルなし
+      </span>
     )
   }
 
   return (
-    <div className="space-y-2">
-      <select
-        value={selectedModel}
-        onChange={(e) => onModelChange(e.target.value as ModelId)}
-        disabled={disabled}
-        className="rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary text-right disabled:opacity-50 disabled:cursor-not-allowed"
-        title={disabled ? 'Loading subscription plan...' : undefined}
-      >
-        {sortedProviders.map((provider) => (
-          <optgroup key={provider} label={provider}>
-            {modelsByProvider[provider].map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name} - {model.contextLength.toLocaleString()} tokens
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-
-      {selectedModelConfig && (
-        <div className="text-xs text-muted-foreground">
-          <div>Provider: {selectedModelConfig.provider}</div>
-          <div>{selectedModelConfig.contextLength.toLocaleString()} tokens</div>
-          <div>
-            ${selectedModelConfig.costPerMillionTokens.input}/${selectedModelConfig.costPerMillionTokens.output} per 1M tokens
-          </div>
-        </div>
-      )}
-    </div>
+    <select
+      value={selected}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className="w-full bg-white/5 border border-white/10 rounded px-2 py-1.5 text-sm text-white/80 focus:outline-none focus:border-white/30 disabled:opacity-50"
+    >
+      {families.map((family) => (
+        <optgroup key={family} label={family}>
+          {byFamily[family].map((m) => (
+            <option key={m.name} value={m.name}>
+              {m.name}
+              {m.details?.parameterSize ? ` (${m.details.parameterSize})` : ''}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   )
 }
