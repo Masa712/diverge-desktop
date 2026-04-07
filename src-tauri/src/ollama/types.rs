@@ -49,17 +49,19 @@ pub struct ChatResponse {
 // ── モデル一覧 ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all(deserialize = "snake_case", serialize = "camelCase"))]
 pub struct OllamaModelDetails {
     pub family: String,
     pub families: Option<Vec<String>>,
     pub parameter_size: String,
     pub quantization_level: String,
     pub format: Option<String>,
+    #[serde(default)]
+    pub parent_model: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all(deserialize = "snake_case", serialize = "camelCase"))]
 pub struct OllamaModel {
     pub name: String,
     pub size: i64,
@@ -76,7 +78,7 @@ pub struct TagsResponse {
 // ── 実行中モデル ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all(deserialize = "snake_case", serialize = "camelCase"))]
 pub struct RunningModel {
     pub name: String,
     pub size: i64,
