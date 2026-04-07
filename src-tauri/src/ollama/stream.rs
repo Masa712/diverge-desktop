@@ -1,4 +1,5 @@
 use anyhow::Result;
+use futures_util::StreamExt;
 use reqwest::Client;
 use serde_json::json;
 use tauri::{AppHandle, Emitter};
@@ -26,28 +27,35 @@ pub async fn stream_chat(
     }
 
     let mut full_content = String::new();
-    let mut total_tokens: i64 = 0;
-    let bytes = response.bytes().await?;
+    let mut stream = response.bytes_stream();
+    let mut buf = String::new();
 
-    // Ollama は改行区切りの JSON オブジェクトを返す（NDJSON）
-    for line in String::from_utf8_lossy(&bytes).lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        if let Ok(data) = serde_json::from_str::<ChatResponse>(line) {
-            let token = &data.message.content;
-            if !token.is_empty() {
-                full_content.push_str(token);
-                let _ = app.emit("stream_token", json!({ "nodeId": node_id, "token": token }));
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        buf.push_str(&String::from_utf8_lossy(&chunk));
+
+        // 改行区切りで完全な行だけ処理（1チャンクに複数行含まれることもある）
+        while let Some(pos) = buf.find('\n') {
+            let line = buf[..pos].trim().to_string();
+            buf = buf[pos + 1..].to_string();
+
+            if line.is_empty() {
+                continue;
             }
-            if data.done {
-                total_tokens = data.eval_count;
-                let _ = app.emit(
-                    "stream_done",
-                    json!({ "nodeId": node_id, "totalTokens": total_tokens }),
-                );
-                break;
+
+            if let Ok(data) = serde_json::from_str::<ChatResponse>(&line) {
+                let token = &data.message.content;
+                if !token.is_empty() {
+                    full_content.push_str(token);
+                    let _ = app.emit("stream_token", json!({ "nodeId": node_id, "token": token }));
+                }
+                if data.done {
+                    let _ = app.emit(
+                        "stream_done",
+                        json!({ "nodeId": node_id, "totalTokens": data.eval_count }),
+                    );
+                    return Ok(full_content);
+                }
             }
         }
     }
@@ -73,20 +81,30 @@ pub async fn stream_pull(
         return Err(anyhow::anyhow!("Pull failed: {}", response.status()));
     }
 
-    let bytes = response.bytes().await?;
-    for line in String::from_utf8_lossy(&bytes).lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        if let Ok(progress) = serde_json::from_str::<serde_json::Value>(line) {
-            let payload = PullProgressPayload {
-                model: model_name.to_string(),
-                status: progress["status"].as_str().unwrap_or("").to_string(),
-                completed: progress["completed"].as_i64(),
-                total: progress["total"].as_i64(),
-            };
-            let _ = app.emit("pull_progress", payload);
+    let mut stream = response.bytes_stream();
+    let mut buf = String::new();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        buf.push_str(&String::from_utf8_lossy(&chunk));
+
+        while let Some(pos) = buf.find('\n') {
+            let line = buf[..pos].trim().to_string();
+            buf = buf[pos + 1..].to_string();
+
+            if line.is_empty() {
+                continue;
+            }
+
+            if let Ok(progress) = serde_json::from_str::<serde_json::Value>(&line) {
+                let payload = PullProgressPayload {
+                    model: model_name.to_string(),
+                    status: progress["status"].as_str().unwrap_or("").to_string(),
+                    completed: progress["completed"].as_i64(),
+                    total: progress["total"].as_i64(),
+                };
+                let _ = app.emit("pull_progress", payload);
+            }
         }
     }
 

@@ -41,6 +41,7 @@ pub struct ChatResponse {
     pub done: bool,
     #[serde(default)]
     pub eval_count: i64,
+    #[allow(dead_code)]
     #[serde(default)]
     pub prompt_eval_count: i64,
 }

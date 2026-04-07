@@ -80,6 +80,7 @@ pub fn get_nodes_by_session(conn: &Connection, session_id: &str) -> Result<Vec<N
     Ok(nodes)
 }
 
+#[allow(dead_code)]
 pub fn set_node_streaming(conn: &Connection, node_id: &str, streaming: bool) -> Result<()> {
     conn.execute(
         "UPDATE nodes SET is_streaming = ?1 WHERE id = ?2",
@@ -88,6 +89,7 @@ pub fn set_node_streaming(conn: &Connection, node_id: &str, streaming: bool) -> 
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn append_node_content(conn: &Connection, node_id: &str, token: &str) -> Result<()> {
     conn.execute(
         "UPDATE nodes SET content = content || ?1 WHERE id = ?2",
@@ -96,6 +98,7 @@ pub fn append_node_content(conn: &Connection, node_id: &str, token: &str) -> Res
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn finalize_node(conn: &Connection, node_id: &str, total_tokens: i64) -> Result<()> {
     conn.execute(
         "UPDATE nodes SET is_streaming = 0, token_count = ?1 WHERE id = ?2",
