@@ -146,7 +146,10 @@ pub async fn send_message(
         &assistant_node_id,
     )
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| {
+        eprintln!("[send_message] stream_chat failed: {}", e);
+        e.to_string()
+    })?;
 
     eprintln!("[send_message] stream_chat done, content_len={}", full_content.len());
     // 7. DB にアシスタントの全文を保存

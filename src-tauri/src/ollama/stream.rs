@@ -16,17 +16,29 @@ pub async fn stream_chat(
     node_id: &str,
 ) -> Result<String> {
     let url = format!("{}/api/chat", base_url);
-    let response = client.post(&url).json(request).send().await?;
+    eprintln!("[stream_chat] POST {} model={}", url, request.model);
+
+    let response = match client.post(&url).json(request).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("[stream_chat] connection error: {}", e);
+            let _ = app.emit("stream_error", json!({ "nodeId": node_id, "error": e.to_string() }));
+            return Err(e.into());
+        }
+    };
+
+    eprintln!("[stream_chat] response status={} for node_id={}", response.status(), node_id);
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
         let err_msg = format!("Ollama error {}: {}", status, body);
+        eprintln!("[stream_chat] error body: {}", err_msg);
         let _ = app.emit("stream_error", json!({ "nodeId": node_id, "error": err_msg }));
         return Err(anyhow::anyhow!(err_msg));
     }
 
-    eprintln!("[stream_chat] connected to Ollama, starting stream for node_id={}", node_id);
+    eprintln!("[stream_chat] response status={} for node_id={}", response.status(), node_id);
     let mut full_content = String::new();
     let mut stream = response.bytes_stream();
     let mut buf = String::new();
