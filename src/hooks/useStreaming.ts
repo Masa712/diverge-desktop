@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useSessionStore } from '@/stores/sessionStore'
 import { onStreamToken, onStreamDone, onStreamError } from '@/lib/tauri'
+import { log } from '@/lib/utils/logger'
 
 const FLUSH_INTERVAL_MS = 50
 
@@ -8,7 +9,7 @@ const FLUSH_INTERVAL_MS = 50
  * ストリーミングトークンを受信して sessionStore を更新するフック。
  * - 50ms バッファリングで過剰な再レンダリングを防ぐ
  * - stream_done で isStreaming フラグを解除し tokenCount を確定
- * - stream_error でエラーを記録（今後: エラーノード化）
+ * - stream_error でエラーを記録
  */
 export function useStreaming() {
   const appendNodeContent = useSessionStore((s) => s.appendNodeContent)
@@ -30,6 +31,23 @@ export function useStreaming() {
     const unlistenAll: Array<() => void> = []
 
     const tokenP = onStreamToken(({ nodeId, token }) => {
+      log.debug('[useStreaming] stream_token', { nodeId, tokenLen: token.length })
+
+      // ストアにこの nodeId のノードが存在しない場合、
+      // placeholder ノード（isStreaming=true の仮ノード）を実際の ID に置き換える
+      const store = useSessionStore.getState()
+      const nodeExists = store.nodes.some((n) => n.id === nodeId)
+      if (!nodeExists) {
+        const placeholder = store.nodes.find(
+          (n) => n.id.startsWith('placeholder-') && n.isStreaming,
+        )
+        if (placeholder) {
+          log.debug('[useStreaming] replacing placeholder', { from: placeholder.id, to: nodeId })
+          store.upsertNode({ ...placeholder, id: nodeId })
+        }
+      }
+
+      // バッファにトークンを追加
       const prev = bufferRef.current.get(nodeId) ?? ''
       bufferRef.current.set(nodeId, prev + token)
 
@@ -42,17 +60,17 @@ export function useStreaming() {
     })
 
     const doneP = onStreamDone(({ nodeId, totalTokens }) => {
-      // 残バッファを強制フラッシュ
+      log.debug('[useStreaming] stream_done', { nodeId, totalTokens })
       flush(nodeId)
       const timer = timerRef.current.get(nodeId)
       if (timer) clearTimeout(timer)
       timerRef.current.delete(nodeId)
       bufferRef.current.delete(nodeId)
-
       finalizeNode(nodeId, totalTokens)
     })
 
-    const errorP = onStreamError(({ nodeId }) => {
+    const errorP = onStreamError(({ nodeId, error }) => {
+      log.debug('[useStreaming] stream_error', { nodeId, error })
       flush(nodeId)
       finalizeNode(nodeId, 0)
     })

@@ -114,12 +114,14 @@ pub async fn send_message(
     }
 
     // 5. フロントエンドに仮ノード ID を通知（stream_token より先に UI を準備させる）
+    eprintln!("[send_message] assistant_node_id={}, model={}", assistant_node_id, model_id);
     let _ = app.emit(
         "stream_token",
         serde_json::json!({ "nodeId": assistant_node_id, "token": "" }),
     );
 
     // 6. Ollama にストリーミングリクエストを送信
+    eprintln!("[send_message] starting stream_chat with {} messages", messages.len());
     let options = params.map(|p| OllamaOptions {
         temperature: p.temperature,
         top_p: p.top_p,
@@ -146,6 +148,7 @@ pub async fn send_message(
     .await
     .map_err(|e| e.to_string())?;
 
+    eprintln!("[send_message] stream_chat done, content_len={}", full_content.len());
     // 7. DB にアシスタントの全文を保存
     {
         let conn = db.0.lock().unwrap();

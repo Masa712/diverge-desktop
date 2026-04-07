@@ -26,9 +26,11 @@ pub async fn stream_chat(
         return Err(anyhow::anyhow!(err_msg));
     }
 
+    eprintln!("[stream_chat] connected to Ollama, starting stream for node_id={}", node_id);
     let mut full_content = String::new();
     let mut stream = response.bytes_stream();
     let mut buf = String::new();
+    let mut token_count = 0usize;
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk?;
@@ -47,9 +49,14 @@ pub async fn stream_chat(
                 let token = &data.message.content;
                 if !token.is_empty() {
                     full_content.push_str(token);
+                    token_count += 1;
+                    if token_count == 1 {
+                        eprintln!("[stream_chat] first token received for node_id={}", node_id);
+                    }
                     let _ = app.emit("stream_token", json!({ "nodeId": node_id, "token": token }));
                 }
                 if data.done {
+                    eprintln!("[stream_chat] done for node_id={}, tokens={}", node_id, data.eval_count);
                     let _ = app.emit(
                         "stream_done",
                         json!({ "nodeId": node_id, "totalTokens": data.eval_count }),

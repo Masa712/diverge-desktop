@@ -15,7 +15,8 @@ impl OllamaClient {
         Self {
             base_url: format!("{}:{}", host, port),
             client: Client::builder()
-                .timeout(std::time::Duration::from_secs(10))
+                .connect_timeout(std::time::Duration::from_secs(5))
+                // リクエスト全体のタイムアウトは設定しない（ストリーミングは完了まで時間がかかる）
                 .build()
                 .expect("Failed to build HTTP client"),
         }

@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useSessionStore } from '@/stores/sessionStore'
 import { useModelStore } from '@/stores/modelStore'
 import { createUserNode, sendMessage } from '@/lib/tauri'
+import { log } from '@/lib/utils/logger'
 import type { Node } from '@/types/session'
 
 /**
@@ -41,13 +42,15 @@ export function useChat() {
       upsertNode(placeholderAssistant)
 
       // 3. send_message を呼び出し（ストリーミング開始）
+      log.debug('[useChat] calling sendMessage', { sessionId: activeSessionId, userNodeId: userNode.id, model: selectedModel })
       const assistantNodeId = await sendMessage(activeSessionId, userNode.id, selectedModel)
+      log.debug('[useChat] sendMessage done', { assistantNodeId })
 
-      // 4. プレースホルダーを実際の ID に差し替え
-      upsertNode({
-        ...placeholderAssistant,
-        id: assistantNodeId,
-      })
+      // 4. プレースホルダーが残っていれば実際の ID に差し替え（useStreaming で既に置き換え済みの場合はスキップ）
+      const store = useSessionStore.getState()
+      if (!store.nodes.some((n) => n.id === assistantNodeId)) {
+        upsertNode({ ...placeholderAssistant, id: assistantNodeId })
+      }
     },
     [activeSessionId, activeNodeId, selectedModel, upsertNode, setActiveNode],
   )
