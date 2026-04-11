@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useSessionStore } from '@/stores/sessionStore'
 import { useModelStore } from '@/stores/modelStore'
-import { createUserNode, sendMessage } from '@/lib/tauri'
+import { createUserNode, sendMessage, stopGeneration } from '@/lib/tauri'
 import { log } from '@/lib/utils/logger'
 import type { Node } from '@/types/session'
 
@@ -11,6 +11,7 @@ import type { Node } from '@/types/session'
  */
 export function useChat() {
   const { activeSessionId, activeNodeId, nodes, upsertNode, setActiveNode } = useSessionStore()
+  const setIsGenerating = (v: boolean) => useSessionStore.setState({ isGenerating: v })
   const selectedModel = useModelStore((s) => s.selectedModel)
 
   /**
@@ -43,8 +44,10 @@ export function useChat() {
 
       // 3. send_message を呼び出し（ストリーミング開始）
       log.debug('[useChat] calling sendMessage', { sessionId: activeSessionId, userNodeId: userNode.id, model: selectedModel })
+      setIsGenerating(true)
       try {
         const assistantNodeId = await sendMessage(activeSessionId, userNode.id, selectedModel)
+        console.log('[useChat] sendMessage returned', { assistantNodeId, storeNodes: useSessionStore.getState().nodes.map(n => `${n.id.slice(0,8)}(${n.role})`) })
         log.debug('[useChat] sendMessage done', { assistantNodeId })
 
         // 4. プレースホルダーが残っていれば実際の ID に差し替え（useStreaming で既に置き換え済みの場合はスキップ）
@@ -54,6 +57,8 @@ export function useChat() {
         }
       } catch (e) {
         log.error('[useChat] sendMessage error', e)
+      } finally {
+        setIsGenerating(false)
       }
     },
     [activeSessionId, activeNodeId, selectedModel, upsertNode, setActiveNode],
@@ -110,5 +115,10 @@ export function useChat() {
     [activeSessionId, selectedModel, nodes, branchFrom],
   )
 
-  return { send, branchFrom, retry }
+  const stop = useCallback(async () => {
+    await stopGeneration()
+    log.debug('[useChat] stop requested')
+  }, [])
+
+  return { send, branchFrom, retry, stop }
 }

@@ -12,19 +12,20 @@ interface Props {
   isLeftSidebarCollapsed?: boolean
   isRightSidebarOpen?: boolean
   rightSidebarWidth?: number
+  resizeDoneToken?: number
 }
 
-export function ChatTreeView({ 
-  nodes: chatNodes, 
-  currentNodeId, 
-  onNodeClick, 
+export function ChatTreeView({
+  nodes: chatNodes,
+  currentNodeId,
+  onNodeClick,
   onNodeIdClick,
   onBackgroundClick,
   isLeftSidebarCollapsed,
   isRightSidebarOpen,
-  rightSidebarWidth
+  rightSidebarWidth,
+  resizeDoneToken,
 }: Props) {
-  // Always use CompactTreeView - simplified implementation
   return (
     <CompactTreeView
       nodes={chatNodes}
@@ -35,6 +36,7 @@ export function ChatTreeView({
       isLeftSidebarCollapsed={isLeftSidebarCollapsed}
       isRightSidebarOpen={isRightSidebarOpen}
       rightSidebarWidth={rightSidebarWidth}
+      resizeDoneToken={resizeDoneToken}
     />
   )
 }

@@ -14,6 +14,7 @@ const FLUSH_INTERVAL_MS = 50
 export function useStreaming() {
   const appendNodeContent = useSessionStore((s) => s.appendNodeContent)
   const finalizeNode = useSessionStore((s) => s.finalizeNode)
+  const replaceNodeId = useSessionStore((s) => s.replaceNodeId)
 
   // バッファ: nodeId → 蓄積トークン文字列
   const bufferRef = useRef<Map<string, string>>(new Map())
@@ -28,9 +29,12 @@ export function useStreaming() {
   }
 
   useEffect(() => {
+    let active = true  // StrictMode の二重実行でリスナーが重複しないよう管理
     const unlistenAll: Array<() => void> = []
 
     const tokenP = onStreamToken(({ nodeId, token }) => {
+      if (!active) return
+      console.log('[useStreaming] stream_token received', { nodeId, tokenLen: token.length })
       log.debug('[useStreaming] stream_token', { nodeId, tokenLen: token.length })
 
       // ストアにこの nodeId のノードが存在しない場合、
@@ -42,8 +46,13 @@ export function useStreaming() {
           (n) => n.id.startsWith('placeholder-') && n.isStreaming,
         )
         if (placeholder) {
+          console.log('[useStreaming] replacing placeholder', { from: placeholder.id, to: nodeId })
           log.debug('[useStreaming] replacing placeholder', { from: placeholder.id, to: nodeId })
-          store.upsertNode({ ...placeholder, id: nodeId })
+          // replaceNodeId でプレースホルダーを in-place で置き換え（古い ID は削除される）
+          replaceNodeId(placeholder.id, { ...placeholder, id: nodeId })
+          console.log('[useStreaming] after replace, nodes:', useSessionStore.getState().nodes.map(n => `${n.id.slice(0,8)}(${n.role})`))
+        } else {
+          console.warn('[useStreaming] no placeholder found! nodes:', store.nodes.map(n => `${n.id.slice(0,8)}(${n.role})`))
         }
       }
 
@@ -60,6 +69,8 @@ export function useStreaming() {
     })
 
     const doneP = onStreamDone(({ nodeId, totalTokens }) => {
+      if (!active) return
+      console.log('[useStreaming] stream_done', { nodeId, totalTokens })
       log.debug('[useStreaming] stream_done', { nodeId, totalTokens })
       flush(nodeId)
       const timer = timerRef.current.get(nodeId)
@@ -70,6 +81,8 @@ export function useStreaming() {
     })
 
     const errorP = onStreamError(({ nodeId, error }) => {
+      if (!active) return
+      console.error('[useStreaming] stream_error', { nodeId, error })
       log.debug('[useStreaming] stream_error', { nodeId, error })
       flush(nodeId)
       finalizeNode(nodeId, 0)
@@ -80,8 +93,9 @@ export function useStreaming() {
     })
 
     return () => {
+      active = false
       unlistenAll.forEach((fn) => fn())
       timerRef.current.forEach((t) => clearTimeout(t))
     }
-  }, [appendNodeContent, finalizeNode])
+  }, [appendNodeContent, finalizeNode, replaceNodeId])
 }

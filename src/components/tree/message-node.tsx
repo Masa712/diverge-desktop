@@ -12,7 +12,7 @@ interface MessageNodeData {
   onNodeIdClick?: (nodeReference: string) => void
 }
 
-export const MessageNode = memo(({ data }: NodeProps<MessageNodeData>) => {
+function MessageNodeInner({ data }: NodeProps<MessageNodeData>) {
   const { node, isCurrentNode, onNodeClick, onNodeIdClick } = data
   
   const getStatusColor = () => {
@@ -165,6 +165,15 @@ export const MessageNode = memo(({ data }: NodeProps<MessageNodeData>) => {
 
       <Handle type="source" position={Position.Bottom} className="opacity-0" />
     </div>
+  )
+}
+
+export const MessageNode = memo(MessageNodeInner, (prev, next) => {
+  return (
+    prev.data.node.response === next.data.node.response &&
+    prev.data.node.status === next.data.node.status &&
+    prev.data.node.prompt === next.data.node.prompt &&
+    prev.data.isCurrentNode === next.data.isCurrentNode
   )
 })
 

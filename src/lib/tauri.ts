@@ -37,6 +37,10 @@ export function createUserNode(sessionId: string, parentId: string | null, conte
 
 // ── チャット（ストリーミング） ────────────────────────────────────────────────
 
+export function stopGeneration(): Promise<void> {
+  return invoke('stop_generation')
+}
+
 export function sendMessage(
   sessionId: string,
   userNodeId: string,

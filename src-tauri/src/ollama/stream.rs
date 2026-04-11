@@ -2,6 +2,8 @@ use anyhow::Result;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde_json::json;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
 
 use super::types::{ChatRequest, ChatResponse, PullProgressPayload};
@@ -14,6 +16,7 @@ pub async fn stream_chat(
     request: &ChatRequest,
     app: &AppHandle,
     node_id: &str,
+    stop_flag: Arc<AtomicBool>,
 ) -> Result<String> {
     let url = format!("{}/api/chat", base_url);
     eprintln!("[stream_chat] POST {} model={}", url, request.model);
@@ -45,6 +48,13 @@ pub async fn stream_chat(
     let mut token_count = 0usize;
 
     while let Some(chunk) = stream.next().await {
+        // 中断フラグが立っていればストリームを打ち切る
+        if stop_flag.load(Ordering::SeqCst) {
+            eprintln!("[stream_chat] stop flag detected, aborting stream for node_id={}", node_id);
+            let _ = app.emit("stream_done", json!({ "nodeId": node_id, "totalTokens": token_count }));
+            return Ok(full_content);
+        }
+
         let chunk = chunk?;
         buf.push_str(&String::from_utf8_lossy(&chunk));
 

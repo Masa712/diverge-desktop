@@ -1,5 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
@@ -8,6 +10,53 @@ use crate::db::nodes::{self, Node};
 use crate::ollama::client::OllamaClient;
 use crate::ollama::stream::stream_chat;
 use crate::ollama::types::{ChatMessage, ChatRequest, OllamaOptions};
+
+/// 生成中断フラグ（AppState として管理）
+pub struct StopFlag(pub Arc<AtomicBool>);
+
+impl StopFlag {
+    pub fn new() -> Self {
+        Self(Arc::new(AtomicBool::new(false)))
+    }
+    pub fn stop(&self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+    pub fn reset(&self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+    pub fn is_stopped(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
+}
+
+/// `<think>...</think>` ブロックを除去し、実際の回答部分のみを返す。
+/// ブロックが存在しない場合はそのまま返す。
+fn strip_thinking(content: &str) -> String {
+    let mut result = content.to_string();
+    loop {
+        if let (Some(start), Some(end_pos)) = (
+            result.find("<think>"),
+            result.find("</think>"),
+        ) {
+            let end = end_pos + "</think>".len();
+            if start <= end_pos {
+                result = format!("{}{}", &result[..start], &result[end..]);
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    result.trim().to_string()
+}
+
+#[tauri::command]
+pub async fn stop_generation(stop_flag: State<'_, StopFlag>) -> Result<(), String> {
+    stop_flag.stop();
+    eprintln!("[stop_generation] stop flag set");
+    Ok(())
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,12 +101,15 @@ pub async fn create_user_node(
 pub async fn send_message(
     db: State<'_, DbState>,
     ollama: State<'_, OllamaClient>,
+    stop_flag: State<'_, StopFlag>,
     app: AppHandle,
     session_id: String,
     user_node_id: String,
     model_id: String,
     params: Option<InferenceParams>,
 ) -> Result<String, String> {
+    // 前回の中断フラグをリセット
+    stop_flag.reset();
     // 1. コンテキスト構築（user_node_id の祖先を辿る）
     let ancestors = {
         let conn = db.0.lock().unwrap();
@@ -84,11 +136,21 @@ pub async fn send_message(
     }
     for node in &ancestors {
         if node.role != "system" {
-            messages.push(ChatMessage {
-                role: node.role.clone(),
-                content: node.content.clone(),
-                images: None,
-            });
+            // アシスタントの <think>...</think> 思考ブロックをコンテキストから除去する。
+            // Qwen 等の thinking モデルが出力する内部思考をそのまま渡すと
+            // 次のターンで混乱が生じるため、表示用コンテンツのみを抽出する。
+            let content = if node.role == "assistant" {
+                strip_thinking(&node.content)
+            } else {
+                node.content.clone()
+            };
+            if !content.trim().is_empty() {
+                messages.push(ChatMessage {
+                    role: node.role.clone(),
+                    content,
+                    images: None,
+                });
+            }
         }
     }
 
@@ -144,6 +206,7 @@ pub async fn send_message(
         &request,
         &app,
         &assistant_node_id,
+        stop_flag.0.clone(),
     )
     .await
     .map_err(|e| {

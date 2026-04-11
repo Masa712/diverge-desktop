@@ -9,6 +9,7 @@ interface SessionState {
   nodes: Node[]
   isLoadingSessions: boolean
   isLoadingNodes: boolean
+  isGenerating: boolean  // モデルが生成中（ロード待ちを含む）
 
   // Actions
   loadSessions: () => Promise<void>
@@ -19,6 +20,7 @@ interface SessionState {
   setActiveNode: (nodeId: string | null) => void
   loadNodes: (sessionId: string) => Promise<void>
   upsertNode: (node: Node) => void
+  replaceNodeId: (oldId: string, node: Node) => void
   appendNodeContent: (nodeId: string, token: string) => void
   finalizeNode: (nodeId: string, totalTokens: number) => void
 }
@@ -30,6 +32,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   nodes: [],
   isLoadingSessions: false,
   isLoadingNodes: false,
+  isGenerating: false,
 
   loadSessions: async () => {
     set({ isLoadingSessions: true })
@@ -102,7 +105,14 @@ export const useSessionStore = create<SessionState>((set) => ({
     })
   },
 
+  replaceNodeId: (oldId: string, node: Node) => {
+    set((s) => ({
+      nodes: s.nodes.map((n) => (n.id === oldId ? node : n)),
+    }))
+  },
+
   appendNodeContent: (nodeId: string, token: string) => {
+    console.log('[sessionStore] appendNodeContent', { nodeId: nodeId.slice(0,8), tokenLen: token.length })
     set((s) => ({
       nodes: s.nodes.map((n) =>
         n.id === nodeId ? { ...n, content: n.content + token, isStreaming: true } : n,

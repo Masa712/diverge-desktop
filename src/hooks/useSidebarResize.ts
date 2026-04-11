@@ -5,13 +5,16 @@ interface UseSidebarResizeProps {
   minWidth?: number
   maxWidth?: number
   onWidthChange?: (width: number) => void
+  /** Called once when dragging ends */
+  onResizeEnd?: (width: number) => void
 }
 
-export function useSidebarResize({ 
-  initialWidth = 400, 
-  minWidth = 400,
+export function useSidebarResize({
+  initialWidth = 400,
+  minWidth = 320,
   maxWidth = 800,
-  onWidthChange 
+  onWidthChange,
+  onResizeEnd,
 }: UseSidebarResizeProps = {}) {
   const [width, setWidth] = useState(initialWidth)
   const [isResizing, setIsResizing] = useState(false)
@@ -25,7 +28,6 @@ export function useSidebarResize({
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing || !sidebarRef.current) return
-      
       const rect = sidebarRef.current.getBoundingClientRect()
       const newWidth = Math.min(maxWidth, Math.max(minWidth, rect.right - e.clientX))
       setWidth(newWidth)
@@ -33,7 +35,9 @@ export function useSidebarResize({
     }
 
     const handleMouseUp = () => {
+      if (!isResizing) return
       setIsResizing(false)
+      onResizeEnd?.(width)
     }
 
     if (isResizing) {
@@ -49,12 +53,12 @@ export function useSidebarResize({
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [isResizing, minWidth, maxWidth, onWidthChange])
+  }, [isResizing, minWidth, maxWidth, onWidthChange, onResizeEnd, width])
 
   return {
     width,
     isResizing,
     sidebarRef,
-    handleMouseDown
+    handleMouseDown,
   }
 }
