@@ -146,6 +146,20 @@ pub fn get_ancestors(conn: &Connection, node_id: &str) -> Result<Vec<Node>> {
     Ok(ancestors)
 }
 
+pub fn delete_node(conn: &Connection, node_id: &str) -> Result<()> {
+    // 子ノードがある場合は削除を拒否
+    let child_count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM nodes WHERE parent_id = ?1",
+        params![node_id],
+        |row| row.get(0),
+    )?;
+    if child_count > 0 {
+        return Err(anyhow::anyhow!("Cannot delete node with children"));
+    }
+    conn.execute("DELETE FROM nodes WHERE id = ?1", params![node_id])?;
+    Ok(())
+}
+
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

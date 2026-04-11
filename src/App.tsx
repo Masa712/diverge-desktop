@@ -243,7 +243,22 @@ function AppInner() {
             onClose={handleCloseRightSidebar}
             session={activeSession ? { id: activeSession.id, name: activeSession.title } : null}
             onRetryNode={(nodeId) => retry(nodeId)}
-            onDeleteNode={(_nodeId) => { /* TODO */ }}
+            onDeleteNode={async (nodeId) => {
+              try {
+                const { deleteNode } = await import('@/lib/tauri')
+                await deleteNode(nodeId)
+                // ノードをストアから削除して UI を更新
+                const store = useSessionStore.getState()
+                const updated = store.nodes.filter(n => n.id !== nodeId)
+                useSessionStore.setState({ nodes: updated })
+                // 削除したノードが右サイドバーに表示中なら閉じる
+                if (selectedNodeForDetail?.id === nodeId) {
+                  handleCloseRightSidebar()
+                }
+              } catch (e) {
+                console.error('[App] delete node failed:', e)
+              }
+            }}
           />
         </div>
       )}
@@ -260,23 +275,13 @@ function AppInner() {
             transition: isRightSidebarResizing ? 'none' : 'left 0.3s ease, right 0.3s ease',
           }}
         >
-          <div className="max-w-4xl mx-auto px-[30px] flex flex-col gap-2" style={{ pointerEvents: 'auto' }}>
-            {isGenerating && (
-              <div className="glass-panel rounded-xl px-4 py-1.5 flex items-center justify-center gap-3">
-                <span className="text-xs text-white/50">モデルが応答を生成中...</span>
-                <button
-                  onClick={stop}
-                  className="px-3 py-0.5 rounded text-xs bg-red-600/70 hover:bg-red-600 text-white transition-colors"
-                >
-                  ■ 停止
-                </button>
-              </div>
-            )}
+          <div className="max-w-4xl mx-auto px-[30px]" style={{ pointerEvents: 'auto' }}>
             <div className="glass-panel rounded-2xl px-4 py-3">
               <ChatInput
                 onSendMessage={send}
+                onStop={stop}
+                isGenerating={isGenerating}
                 availableNodes={displayNodes}
-                disabled={isGenerating}
               />
             </div>
           </div>

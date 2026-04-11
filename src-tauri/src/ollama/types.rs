@@ -19,7 +19,7 @@ pub struct ChatMessage {
     pub images: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, Default)]
 pub struct OllamaOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
@@ -33,6 +33,8 @@ pub struct OllamaOptions {
     pub repeat_penalty: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_predict: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,6 +46,45 @@ pub struct ChatResponse {
     #[allow(dead_code)]
     #[serde(default)]
     pub prompt_eval_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GenerateRequest {
+    pub model: String,
+    pub prompt: String,
+    pub stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<OllamaOptions>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GenerateResponse {
+    #[serde(default)]
+    pub response: String,
+    pub done: bool,
+    #[serde(default)]
+    pub eval_count: i64,
+    #[allow(dead_code)]
+    #[serde(default)]
+    pub prompt_eval_count: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ShowResponse {
+    #[serde(default)]
+    pub template: Option<String>,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub details: Option<ShowDetails>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ShowDetails {
+    #[serde(default)]
+    pub family: Option<String>,
+    #[serde(default)]
+    pub families: Option<Vec<String>>,
 }
 
 // ── モデル一覧 ────────────────────────────────────────────────────────────────

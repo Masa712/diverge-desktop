@@ -79,6 +79,15 @@ pub async fn get_nodes(
 }
 
 #[tauri::command]
+pub async fn delete_node(
+    db: State<'_, DbState>,
+    node_id: String,
+) -> Result<(), String> {
+    let conn = db.0.lock().unwrap();
+    nodes::delete_node(&conn, &node_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn create_user_node(
     db: State<'_, DbState>,
     session_id: String,
@@ -116,23 +125,37 @@ pub async fn send_message(
         nodes::get_ancestors(&conn, &user_node_id).map_err(|e| e.to_string())?
     };
 
-    // 2. セッションのシステムプロンプトを取得
+    // 2. セッションのシステムプロンプトを取得（未設定の場合はデフォルトを使用）
     let system_prompt = {
         let conn = db.0.lock().unwrap();
         let node = ancestors.first().cloned();
         if let Some(root) = node {
             let session = crate::db::sessions::get_session(&conn, &root.session_id)
                 .map_err(|e| e.to_string())?;
-            session.system_prompt
+            session.system_prompt.or_else(|| {
+                Some(
+                    "/no_think\n\
+                 You are a helpful, friendly AI assistant. \
+                 Respond to the user's message directly and naturally. \
+                 If the user writes in Japanese, respond in Japanese. \
+                 If the user writes in English, respond in English. \
+                 Keep your responses concise and relevant to what the user asked."
+                        .to_string(),
+                )
+            })
         } else {
-            None
+            Some("You are a helpful AI assistant.".to_string())
         }
     };
 
     // 3. messages 配列を組み立てる
     let mut messages: Vec<ChatMessage> = Vec::new();
     if let Some(sp) = system_prompt {
-        messages.push(ChatMessage { role: "system".to_string(), content: sp, images: None });
+        messages.push(ChatMessage {
+            role: "system".to_string(),
+            content: sp,
+            images: None,
+        });
     }
     for node in &ancestors {
         if node.role != "system" {
@@ -176,14 +199,29 @@ pub async fn send_message(
     }
 
     // 5. フロントエンドに仮ノード ID を通知（stream_token より先に UI を準備させる）
-    eprintln!("[send_message] assistant_node_id={}, model={}", assistant_node_id, model_id);
+    eprintln!(
+        "[send_message] assistant_node_id={}, model={}",
+        assistant_node_id, model_id
+    );
     let _ = app.emit(
         "stream_token",
         serde_json::json!({ "nodeId": assistant_node_id, "token": "" }),
     );
 
     // 6. Ollama にストリーミングリクエストを送信
-    eprintln!("[send_message] starting stream_chat with {} messages", messages.len());
+    eprintln!(
+        "[send_message] starting stream_chat with {} messages:",
+        messages.len()
+    );
+    for (i, msg) in messages.iter().enumerate() {
+        eprintln!(
+            "  [{}] role={}, content_len={}, preview={:?}",
+            i,
+            msg.role,
+            msg.content.len(),
+            &msg.content.chars().take(100).collect::<String>()
+        );
+    }
     let options = params.map(|p| OllamaOptions {
         temperature: p.temperature,
         top_p: p.top_p,
@@ -191,6 +229,7 @@ pub async fn send_message(
         num_ctx: p.num_ctx,
         repeat_penalty: p.repeat_penalty,
         num_predict: p.max_tokens,
+        stop: None,
     });
 
     let request = ChatRequest {
@@ -200,7 +239,7 @@ pub async fn send_message(
         options,
     };
 
-    let full_content = stream_chat(
+    let full_content = match stream_chat(
         ollama.http_client(),
         &ollama.base_url,
         &request,
@@ -209,19 +248,35 @@ pub async fn send_message(
         stop_flag.0.clone(),
     )
     .await
-    .map_err(|e| {
-        eprintln!("[send_message] stream_chat failed: {}", e);
-        e.to_string()
-    })?;
+    {
+        Ok(content) => content,
+        Err(e) => {
+            eprintln!("[send_message] stream_chat failed: {}", e);
+            let conn = db.0.lock().unwrap();
+            if let Err(db_err) = conn.execute(
+                "UPDATE nodes SET is_streaming = 0 WHERE id = ?1",
+                rusqlite::params![assistant_node_id],
+            ) {
+                eprintln!("[send_message] failed to clear streaming flag: {}", db_err);
+            }
+            return Err(e.to_string());
+        }
+    };
 
-    eprintln!("[send_message] stream_chat done, content_len={}", full_content.len());
-    // 7. DB にアシスタントの全文を保存
+    // 7. DB にアシスタントの全文を保存（thinking ブロックは除去済み）
+    let clean_content = strip_thinking(&full_content);
+    eprintln!(
+        "[send_message] stream_chat done, raw_len={}, clean_len={}",
+        full_content.len(),
+        clean_content.len()
+    );
     {
         let conn = db.0.lock().unwrap();
         conn.execute(
             "UPDATE nodes SET content = ?1, is_streaming = 0 WHERE id = ?2",
-            rusqlite::params![full_content, assistant_node_id],
-        ).map_err(|e| e.to_string())?;
+            rusqlite::params![clean_content, assistant_node_id],
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     Ok(assistant_node_id)

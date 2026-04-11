@@ -5,13 +5,15 @@ import { ChatNode } from '@/types'
 
 interface Props {
   onSendMessage: (message: string) => Promise<void>
+  onStop?: () => void
+  isGenerating?: boolean
   disabled?: boolean
   availableNodes?: ChatNode[]
   onInputMount?: (insertFunction: (text: string) => void) => void
   onFocusChange?: (focused: boolean) => void
 }
 
-export function ChatInput({ onSendMessage, disabled = false, availableNodes: _availableNodes = [], onInputMount, onFocusChange }: Props) {
+export function ChatInput({ onSendMessage, onStop, isGenerating = false, disabled = false, availableNodes: _availableNodes = [], onInputMount, onFocusChange }: Props) {
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
@@ -20,7 +22,7 @@ export function ChatInput({ onSendMessage, disabled = false, availableNodes: _av
   const { models, selectedModel, selectModel } = useModelStore()
 
   const handleSubmit = async () => {
-    if (!message.trim() || sending || disabled) return
+    if (!message.trim() || sending || disabled || isGenerating) return
 
     const messageToSend = message.trim()
     setMessage('')
@@ -84,7 +86,7 @@ export function ChatInput({ onSendMessage, disabled = false, availableNodes: _av
     onInputMount?.(insertAtCursor)
   }, [onInputMount, insertAtCursor])
 
-  const canSend = message.trim().length > 0 && !sending && !disabled
+  const canSend = message.trim().length > 0 && !sending && !disabled && !isGenerating
 
   return (
     <div>
@@ -138,9 +140,14 @@ export function ChatInput({ onSendMessage, disabled = false, availableNodes: _av
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
           </button>
+
+          {/* Generating indicator */}
+          {isGenerating && (
+            <span className="text-[10px] text-white/30 ml-1">生成中...</span>
+          )}
         </div>
 
-        {/* Right: model selector + send */}
+        {/* Right: model selector + send/stop */}
         <div className="flex items-center gap-2">
           {/* Compact model selector */}
           <select
@@ -155,25 +162,40 @@ export function ChatInput({ onSendMessage, disabled = false, availableNodes: _av
             ))}
           </select>
 
-          {/* Send button */}
-          <button
-            onClick={handleSubmit}
-            disabled={!canSend}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 ${
-              canSend
-                ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:scale-105'
-                : 'bg-white/10 text-white/20 cursor-not-allowed'
-            }`}
-            title="送信"
-          >
-            {sending ? (
-              <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+          {/* Send / Stop button */}
+          {isGenerating ? (
+            <button
+              onClick={() => {
+                console.log('[ChatInput] stop button clicked')
+                onStop?.()
+              }}
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-red-500/80 hover:bg-red-500 text-white shadow-lg hover:scale-105 transition-all duration-200"
+              title="生成を停止"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="1" />
               </svg>
-            )}
-          </button>
+            </button>
+          ) : (
+            <button
+              onClick={handleSubmit}
+              disabled={!canSend}
+              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 ${
+                canSend
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:scale-105'
+                  : 'bg-white/10 text-white/20 cursor-not-allowed'
+              }`}
+              title="送信"
+            >
+              {sending ? (
+                <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                </svg>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

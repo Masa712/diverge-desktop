@@ -35,6 +35,10 @@ export function createUserNode(sessionId: string, parentId: string | null, conte
   return invoke('create_user_node', { sessionId, parentId, content })
 }
 
+export function deleteNode(nodeId: string): Promise<void> {
+  return invoke('delete_node', { nodeId })
+}
+
 // ── チャット（ストリーミング） ────────────────────────────────────────────────
 
 export function stopGeneration(): Promise<void> {

@@ -88,6 +88,7 @@ pub fn run() {
             // チャット・ノード
             commands::chat::get_nodes,
             commands::chat::create_user_node,
+            commands::chat::delete_node,
             commands::chat::send_message,
             commands::chat::stop_generation,
             // モデル管理

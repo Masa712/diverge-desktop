@@ -15,22 +15,31 @@ pub struct Session {
     pub metadata: Option<String>,
 }
 
+/// セッション作成時のデフォルトシステムプロンプト
+/// `/no_think` は Qwen3 系モデルの思考モードを無効化するフラグ。
+const DEFAULT_SYSTEM_PROMPT: &str = "/no_think\n\
+You are a helpful, friendly AI assistant. \
+Respond to the user's message directly and naturally. \
+If the user writes in Japanese, respond in Japanese. \
+If the user writes in English, respond in English. \
+Keep your responses concise and relevant to what the user asked.";
+
 pub fn create_session(conn: &Connection, model_id: &str, title: Option<&str>) -> Result<Session> {
     let id = Uuid::new_v4().to_string();
     let now = now_ms();
     let title = title.unwrap_or("新しいセッション");
 
     conn.execute(
-        "INSERT INTO sessions (id, title, model_id, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![id, title, model_id, now, now],
+        "INSERT INTO sessions (id, title, model_id, system_prompt, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![id, title, model_id, DEFAULT_SYSTEM_PROMPT, now, now],
     )?;
 
     Ok(Session {
         id,
         title: title.to_string(),
         model_id: model_id.to_string(),
-        system_prompt: None,
+        system_prompt: Some(DEFAULT_SYSTEM_PROMPT.to_string()),
         created_at: now,
         updated_at: now,
         metadata: None,
